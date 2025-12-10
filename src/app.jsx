@@ -6,7 +6,8 @@ import { mainnet, sepolia } from 'wagmi/chains'
 import { walletConnect, injected } from 'wagmi/connectors'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-import clutchLogo from './clutch-logo.jpg'
+import clutchLogo from './logo.png'
+import clutchgif from './clutch.gif'
 
 // ========== WAGMI CONFIG ==========
 const projectId = '6f5fd7faa128d369f81c8c280945a4ca'
@@ -577,6 +578,15 @@ body {
   background: rgba(6,18,42,0.95);
   border: 1px solid rgba(255,255,255,0.16);
   font-size: 0.85rem;
+}
+  .country-pill img {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.team-logo img {
+  width: 70%;
+  height: auto;
 }
 
 /* ========== USA QUICK-BET STRIP ========== */
@@ -1178,55 +1188,58 @@ function ClutchApp() {
     setTimeout(() => setIsCelebrating(false), 1800)
   }
 
-  const getFlagEmoji = (country) => {
-    const map = {
-      Mexico: '🇲🇽',
-      'South Africa': '🇿🇦',
-      'South Korea': '🇰🇷',
-      Canada: '🇨🇦',
-      Qatar: '🇶🇦',
-      Switzerland: '🇨🇭',
-      Brazil: '🇧🇷',
-      Morocco: '🇲🇦',
-      Haiti: '🇭🇹',
-      Scotland: '🏴',
-      'United States': '🇺🇸',
-      Paraguay: '🇵🇾',
-      Australia: '🇦🇺',
-      Germany: '🇩🇪',
-      Curacao: '🇨🇼',
-      'Ivory Coast': '🇨🇮',
-      Ecuador: '🇪🇨',
-      Netherlands: '🇳🇱',
-      Japan: '🇯🇵',
-      Tunisia: '🇹🇳',
-      Belgium: '🇧🇪',
-      Egypt: '🇪🇬',
-      Iran: '🇮🇷',
-      'New Zealand': '🇳🇿',
-      Spain: '🇪🇸',
-      'Cape Verde': '🇨🇻',
-      'Saudi Arabia': '🇸🇦',
-      Uruguay: '🇺🇾',
-      France: '🇫🇷',
-      Senegal: '🇸🇳',
-      Norway: '🇳🇴',
-      Argentina: '🇦🇷',
-      Algeria: '🇩🇿',
-      Austria: '🇦🇹',
-      Jordan: '🇯🇴',
-      Portugal: '🇵🇹',
-      Uzbekistan: '🇺🇿',
-      Colombia: '🇨🇴',
-      England: '🏴',
-      Croatia: '🇭🇷',
-      Ghana: '🇬🇭',
-      Panama: '🇵🇦'
-    }
-    if (map[country]) return map[country]
-    if (country.includes('Playoff')) return '🏁'
-    return '🏳️'
+  // returns both a 2-letter code (for image) + emoji fallback
+const getFlag = (country) => {
+  const map = {
+    Mexico:        { code: 'mx', emoji: '🇲🇽' },
+    'South Africa':{ code: 'za', emoji: '🇿🇦' },
+    'South Korea': { code: 'kr', emoji: '🇰🇷' },
+    Canada:        { code: 'ca', emoji: '🇨🇦' },
+    Qatar:         { code: 'qa', emoji: '🇶🇦' },
+    Switzerland:   { code: 'ch', emoji: '🇨🇭' },
+    Brazil:        { code: 'br', emoji: '🇧🇷' },
+    Morocco:       { code: 'ma', emoji: '🇲🇦' },
+    Haiti:         { code: 'ht', emoji: '🇭🇹' },
+    Scotland:      { code: 'gb-sct', emoji: '🏴' },
+    'United States':{ code: 'us', emoji: '🇺🇸' },
+    Paraguay:      { code: 'py', emoji: '🇵🇾' },
+    Australia:     { code: 'au', emoji: '🇦🇺' },
+    Germany:       { code: 'de', emoji: '🇩🇪' },
+    Curacao:       { code: 'cw', emoji: '🇨🇼' },
+    'Ivory Coast': { code: 'ci', emoji: '🇨🇮' },
+    Ecuador:       { code: 'ec', emoji: '🇪🇨' },
+    Netherlands:   { code: 'nl', emoji: '🇳🇱' },
+    Japan:         { code: 'jp', emoji: '🇯🇵' },
+    Tunisia:       { code: 'tn', emoji: '🇹🇳' },
+    Belgium:       { code: 'be', emoji: '🇧🇪' },
+    Egypt:         { code: 'eg', emoji: '🇪🇬' },
+    Iran:          { code: 'ir', emoji: '🇮🇷' },
+    'New Zealand': { code: 'nz', emoji: '🇳🇿' },
+    Spain:         { code: 'es', emoji: '🇪🇸' },
+    'Cape Verde':  { code: 'cv', emoji: '🇨🇻' },
+    'Saudi Arabia':{ code: 'sa', emoji: '🇸🇦' },
+    Uruguay:       { code: 'uy', emoji: '🇺🇾' },
+    France:        { code: 'fr', emoji: '🇫🇷' },
+    Senegal:       { code: 'sn', emoji: '🇸🇳' },
+    Norway:        { code: 'no', emoji: '🇳🇴' },
+    Argentina:     { code: 'ar', emoji: '🇦🇷' },
+    Algeria:       { code: 'dz', emoji: '🇩🇿' },
+    Austria:       { code: 'at', emoji: '🇦🇹' },
+    Jordan:        { code: 'jo', emoji: '🇯🇴' },
+    Portugal:      { code: 'pt', emoji: '🇵🇹' },
+    Uzbekistan:    { code: 'uz', emoji: '🇺🇿' },
+    Colombia:      { code: 'co', emoji: '🇨🇴' },
+    England:       { code: 'gb-eng', emoji: '🏴' },
+    Croatia:       { code: 'hr', emoji: '🇭🇷' },
+    Ghana:         { code: 'gh', emoji: '🇬🇭' },
+    Panama:        { code: 'pa', emoji: '🇵🇦' }
   }
+
+  if (map[country]) return map[country]
+  if (country.includes('Playoff')) return { code: null, emoji: '🏁' }
+  return { code: null, emoji: '🏳️' }
+}
+
 
   const getOutcomeText = (outcome, match) => {
     if (!match) return ''
@@ -1289,6 +1302,27 @@ function ClutchApp() {
     triggerCelebration()
     showNotification('CLUTCH ticket submitted.', 'success')
   }
+const renderFlag = (country, size = 20) => {
+  const { code, emoji } = getFlag(country)
+  if (code) {
+    // using flagcdn – super lightweight PNGs
+    return (
+      <img
+        src={`https://flagcdn.com/w20/${code}.png`}
+        alt={country}
+        width={size}
+        height={size * 0.75}
+        style={{ borderRadius: 3 }}
+        onError={(e) => {
+          // if image fails for some reason, show emoji
+          e.currentTarget.style.display = 'none'
+          e.currentTarget.parentNode.textContent = emoji
+        }}
+      />
+    )
+  }
+  return <span>{emoji}</span>
+}
 
   const placeUltimateBet = () => {
     if (!ultimateBetAmount || Number(ultimateBetAmount) <= 0 || !state.selectedTeam) {
@@ -1477,7 +1511,7 @@ function ClutchApp() {
               </div>
               <div className="hero-mascot-frame">
                 <img
-                  src={clutchLogo}
+                  src={clutchgif}
                   alt="CLUTCH mascot stadium art"
                   className="hero-mascot-img"
                 />
@@ -1538,20 +1572,20 @@ function ClutchApp() {
               <div className="match-teams">
                 <div className="team">
                   <div className="team-logo">
-                    {getFlagEmoji(match.teamA)}
+                    {renderFlag(match.teamA)}
                   </div>
                   <div className="country-pill">
-                    <span>{getFlagEmoji(match.teamA)}</span>
+                    <span>{renderFlag(match.teamA)}</span>
                     <span>{match.teamA}</span>
                   </div>
                 </div>
                 <div className="vs-text">VS</div>
                 <div className="team">
                   <div className="team-logo">
-                    {getFlagEmoji(match.teamB)}
+                    {renderFlag(match.teamB)}
                   </div>
                   <div className="country-pill">
-                    <span>{getFlagEmoji(match.teamB)}</span>
+                    <span>{renderFlag(match.teamB)}</span>
                     <span>{match.teamB}</span>
                   </div>
                 </div>
@@ -1563,7 +1597,7 @@ function ClutchApp() {
                 >
                   <div className="odds">{match.odds.teamA}</div>
                   <div className="country-pill" style={{ marginTop: 6 }}>
-                    <span>{getFlagEmoji(match.teamA)}</span>
+                    <span>{renderFlag(match.teamA)}</span>
                     <span>{match.teamA}</span>
                   </div>
                 </div>
@@ -1580,7 +1614,7 @@ function ClutchApp() {
                 >
                   <div className="odds">{match.odds.teamB}</div>
                   <div className="country-pill" style={{ marginTop: 6 }}>
-                    <span>{getFlagEmoji(match.teamB)}</span>
+                    <span>{renderFlag(match.teamB)}</span>
                     <span>{match.teamB}</span>
                   </div>
                 </div>
@@ -1609,7 +1643,7 @@ function ClutchApp() {
               {group.teams.map(team => (
                 <div key={team} className="group-team-row">
                   <div className="country-pill">
-                    <span>{getFlagEmoji(team)}</span>
+                    <span>{renderFlag(team)}</span>
                     <span>{team}</span>
                   </div>
                 </div>
