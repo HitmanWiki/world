@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAccount, useDisconnect } from 'wagmi'
-import { createWeb3Modal } from '@web3modal/wagmi'
+import { createWeb3Modal, defaultWagmiConfig } from '@web3modal/wagmi'  // Change this import
 import { createConfig, http } from 'wagmi'
 import { mainnet, sepolia } from 'wagmi/chains'
 import { walletConnect, injected } from 'wagmi/connectors'
@@ -10,8 +10,10 @@ import clutchLogo from './logo.png'
 import clutchgif from './clutch.gif'
 
 // ========== WAGMI CONFIG ==========
+// ========== WAGMI CONFIG ==========
 const projectId = '6f5fd7faa128d369f81c8c280945a4ca'
 
+// Create wagmiConfig
 export const config = createConfig({
   chains: [mainnet, sepolia],
   transports: {
@@ -23,30 +25,33 @@ export const config = createConfig({
       projectId,
       metadata: {
         name: 'CLUTCH - Team USA Mascot',
-        description:
-          'CLUTCH – Official 2026 Team USA Mascot Signature Prediction Suite',
+        description: 'CLUTCH – Official 2026 Team USA Mascot Signature Prediction Suite',
         url: typeof window !== 'undefined' ? window.location.origin : '',
-        icons:
-          typeof window !== 'undefined'
-            ? [`${window.location.origin}/clutch-logo.jpg`]
-            : []
-      },
-      showQrModal: false
+        icons: typeof window !== 'undefined' ? [`${window.location.origin}/clutch-logo.jpg`] : []
+      }
     }),
-    injected({ shimDisconnect: true })
+    injected()
   ]
 })
 
-createWeb3Modal({
+// Create modal
+const modal = createWeb3Modal({
   wagmiConfig: config,
   projectId,
   enableAnalytics: true,
   themeMode: 'dark',
   themeVariables: {
     '--w3m-accent': '#D71920',
-    '--w3m-border-radius-master': '16px'
+    '--w3m-border-radius-master': '16px',
+    '--w3m-font-family': 'Montserrat, sans-serif',
+    '--w3m-font-size-master': '14px'
   }
 })
+
+// Store modal instance globally for easy access
+if (typeof window !== 'undefined') {
+  window.web3modal = modal
+}
 
 const queryClient = new QueryClient()
 
@@ -139,7 +144,6 @@ body {
 .header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 18px;
   padding: 10px 16px;
   margin-bottom: 40px;
@@ -153,13 +157,14 @@ body {
   z-index: 1000;
   overflow: hidden;
 }
-
 .logo {
   display: flex;
   align-items: center;
   gap: 12px;
-  flex: 0 0 auto;
+  flex-shrink: 0;
+  min-width: fit-content;
 }
+
 
 .logo-icon {
   width: 52px;
@@ -220,9 +225,11 @@ body {
 }
 
 .nav-container {
-  flex: 1 1 auto;
+  flex: 1;
   display: flex;
   justify-content: center;
+  min-width: 0;
+  margin: 0 20px;
 }
 
 .nav-rail {
@@ -235,8 +242,10 @@ body {
   border-radius: 30px;
   background: var(--nav-pill);
   border: 1px solid rgba(255,255,255,0.09);
+  min-width: 0; /* Add this */
 }
 
+/* Update the nav-links to handle overflow */
 .nav-links {
   flex: 1 1 auto;
   display: flex;
@@ -245,10 +254,11 @@ body {
   padding: 2px;
   border-radius: 24px;
   background: radial-gradient(circle at 0% 0%, #1E477B 0%, #020817 55%);
+  overflow: hidden; /* Add this */
 }
 
 .nav-link {
-  flex: 1 1 0;
+  flex: 0 1 auto; /* Change from flex: 1 1 0 */
   text-align: center;
   color: var(--text-soft);
   text-decoration: none;
@@ -262,7 +272,6 @@ body {
   position: relative;
   transition: all 0.25s ease;
 }
-
 .nav-link:hover {
   color: var(--usa-white);
 }
@@ -283,6 +292,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin-left: auto; /* Add this to push to the right */
 }
 
 .wallet-pill {
@@ -1045,9 +1055,10 @@ body {
 }
 
 @media (max-width: 900px) {
-  .header {
+   .header {
     flex-wrap: wrap;
     row-gap: 10px;
+    justify-content: space-between; /* Add this */
   }
   .nav-container {
     order: 3;
@@ -1058,6 +1069,10 @@ body {
   }
   .wallet-section {
     order: 2;
+    margin-left: 0; /* Reset for mobile */
+  }
+  .logo {
+    order: 1;
   }
 }
 
@@ -1459,11 +1474,17 @@ const renderFlag = (country, size = 20) => {
           </div>
 
           <button
-            className="connect-btn"
-            onClick={() => window?.openWeb3Modal?.()}
-          >
-            {isConnected ? 'Switch / Wallet' : 'Connect Wallet'}
-          </button>
+  className="connect-btn"
+  onClick={() => {
+    if (typeof window !== 'undefined' && window.web3modal) {
+      window.web3modal.open();
+    } else {
+      console.log('Web3Modal not available');
+    }
+  }}
+>
+  {isConnected ? 'Switch / Wallet' : 'Connect Wallet'}
+</button>
 
           {isConnected && (
             <button className="disconnect-btn" onClick={() => disconnect()}>
