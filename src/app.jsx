@@ -1077,7 +1077,7 @@ function ClutchApp() {
   const [loading, setLoading] = useState(true)
 
   // BACKEND API BASE URL - YOUR BACKEND
-  const API_BASE = 'http://localhost:3000/api/v4'
+  const API_BASE = 'https://cup-backend-red.vercel.app/api/v4'
 
   // In your frontend app.jsx, update the fetchData function:
 // ========== ADD THE AUTO-LOGIN EFFECT HERE ==========

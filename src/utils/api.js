@@ -1,7 +1,7 @@
 // src/utils/api.js
 class ApiClient {
   constructor() {
-    this.baseURL = 'http://localhost:3000/api/v4';
+    this.baseURL = 'https://cup-backend-red.vercel.app/api/v4';
     this.token = null;
   }
 
