@@ -1,59 +1,11 @@
+// app.jsx - COMPLETE FILE (NO SAMPLE DATA)
 import { useState, useEffect } from 'react'
-import { useAccount, useDisconnect } from 'wagmi'
-import { createWeb3Modal, defaultWagmiConfig } from '@web3modal/wagmi'  // Change this import
-import { createConfig, http } from 'wagmi'
-import { mainnet, sepolia } from 'wagmi/chains'
-import { walletConnect, injected } from 'wagmi/connectors'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { useAccount, useDisconnect, useSignMessage } from 'wagmi'
+import { BrowserProvider } from 'ethers'
+import apiClient from './utils/api'  // ADD THIS IMPORT
 
 import clutchLogo from './logo.png'
 import clutchgif from './clutch.gif'
-
-// ========== WAGMI CONFIG ==========
-// ========== WAGMI CONFIG ==========
-const projectId = '6f5fd7faa128d369f81c8c280945a4ca'
-
-// Create wagmiConfig
-export const config = createConfig({
-  chains: [mainnet, sepolia],
-  transports: {
-    [mainnet.id]: http(),
-    [sepolia.id]: http()
-  },
-  connectors: [
-    walletConnect({
-      projectId,
-      metadata: {
-        name: 'CLUTCH - Team USA Mascot',
-        description: 'CLUTCH – Official 2026 Team USA Mascot Signature Prediction Suite',
-        url: typeof window !== 'undefined' ? window.location.origin : '',
-        icons: typeof window !== 'undefined' ? [`${window.location.origin}/clutch-logo.jpg`] : []
-      }
-    }),
-    injected()
-  ]
-})
-
-// Create modal
-const modal = createWeb3Modal({
-  wagmiConfig: config,
-  projectId,
-  enableAnalytics: true,
-  themeMode: 'dark',
-  themeVariables: {
-    '--w3m-accent': '#D71920',
-    '--w3m-border-radius-master': '16px',
-    '--w3m-font-family': 'Montserrat, sans-serif',
-    '--w3m-font-size-master': '14px'
-  }
-})
-
-// Store modal instance globally for easy access
-if (typeof window !== 'undefined') {
-  window.web3modal = modal
-}
-
-const queryClient = new QueryClient()
 
 // ========== GLOBAL STYLES ==========
 const styles = `
@@ -223,6 +175,7 @@ body {
   text-transform: uppercase;
   color: var(--text-soft);
 }
+
 
 .nav-container {
   flex: 1;
@@ -1059,6 +1012,7 @@ body {
     flex-wrap: wrap;
     row-gap: 10px;
     justify-content: space-between; /* Add this */
+    
   }
   .nav-container {
     order: 3;
@@ -1102,8 +1056,9 @@ body {
 
 // ========== REACT APP ==========
 function ClutchApp() {
-  const { isConnected } = useAccount()
+   const { isConnected, address } = useAccount()
   const { disconnect } = useDisconnect()
+  const { signMessageAsync } = useSignMessage()  // Use this instead of useWalletClient
 
   const [state, setState] = useState({
     matches: [],
@@ -1118,61 +1073,213 @@ function ClutchApp() {
   const [ultimateBetAmount, setUltimateBetAmount] = useState('')
   const [notification, setNotification] = useState({ show: false, message: '', type: '' })
   const [isCelebrating, setIsCelebrating] = useState(false)
+  const [groups, setGroups] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  // groups from 2026 draw – standings only (no points yet)
-  const groupsData = [
-    { name: 'Group A', teams: ['Mexico', 'South Africa', 'South Korea', 'European Playoff D'] },
-    { name: 'Group B', teams: ['Canada', 'European Playoff A', 'Qatar', 'Switzerland'] },
-    { name: 'Group C', teams: ['Brazil', 'Morocco', 'Haiti', 'Scotland'] },
-    { name: 'Group D', teams: ['United States', 'Paraguay', 'Australia', 'European Playoff C'] },
-    { name: 'Group E', teams: ['Germany', 'Curacao', 'Ivory Coast', 'Ecuador'] },
-    { name: 'Group F', teams: ['Netherlands', 'Japan', 'European Playoff B', 'Tunisia'] },
-    { name: 'Group G', teams: ['Belgium', 'Egypt', 'Iran', 'New Zealand'] },
-    { name: 'Group H', teams: ['Spain', 'Cape Verde', 'Saudi Arabia', 'Uruguay'] },
-    { name: 'Group I', teams: ['France', 'Senegal', 'FIFA Playoff 2', 'Norway'] },
-    { name: 'Group J', teams: ['Argentina', 'Algeria', 'Austria', 'Jordan'] },
-    { name: 'Group K', teams: ['Portugal', 'FIFA Playoff 1', 'Uzbekistan', 'Colombia'] },
-    { name: 'Group L', teams: ['England', 'Croatia', 'Ghana', 'Panama'] }
-  ]
+  // BACKEND API BASE URL - YOUR BACKEND
+  const API_BASE = 'https://cup-backend-red.vercel.app/api/v4'
 
-  const sampleMatches = [
-    {
-      id: 1,
-      group: 'Group A',
-      teamA: 'Mexico',
-      teamB: 'South Africa',
-      timestamp: new Date('2026-06-11T13:00:00-06:00').getTime(),
-      venue: 'Estadio Azteca, Mexico City',
-      odds: { teamA: 1.9, draw: 3.4, teamB: 4.2 }
-    },
-    {
-      id: 2,
-      group: 'Group D',
-      teamA: 'United States',
-      teamB: 'Paraguay',
-      timestamp: new Date('2026-06-12T19:00:00-05:00').getTime(),
-      venue: 'Levi’s Stadium, Santa Clara',
-      odds: { teamA: 2.0, draw: 3.3, teamB: 3.8 }
-    },
-    {
-      id: 3,
-      group: 'Group J',
-      teamA: 'Argentina',
-      teamB: 'Algeria',
-      timestamp: new Date('2026-06-13T16:00:00-04:00').getTime(),
-      venue: 'MetLife Stadium, New York/New Jersey',
-      odds: { teamA: 1.8, draw: 3.4, teamB: 4.6 }
-    },
-    {
-      id: 4,
-      group: 'Group C',
-      teamA: 'Brazil',
-      teamB: 'Morocco',
-      timestamp: new Date('2026-06-14T18:00:00-04:00').getTime(),
-      venue: 'Mercedes-Benz Stadium, Atlanta',
-      odds: { teamA: 2.1, draw: 3.2, teamB: 3.4 }
+  // In your frontend app.jsx, update the fetchData function:
+// ========== ADD THE AUTO-LOGIN EFFECT HERE ==========
+  useEffect(() => {
+    if (isConnected && address) {
+      // Check if we need to log in
+      const token = localStorage.getItem('token');
+      const storedWallet = localStorage.getItem('walletAddress');
+      
+      if (!token || storedWallet !== address) {
+        // Auto-login after wallet connects
+        console.log('🔄 Auto-login triggered');
+        setTimeout(() => {
+          handleWalletLogin();
+        }, 500);
+      }
     }
-  ]
+  }, [isConnected, address]);
+
+  // ========== ADD THE DEBUG FUNCTION HERE ==========
+  const debugAuth = () => {
+    const token = localStorage.getItem('token');
+    console.log('🔍 Debug Auth:');
+    console.log('Token exists:', !!token);
+    console.log('Token:', token ? `${token.substring(0, 20)}...` : 'None');
+    console.log('Wallet connected:', isConnected);
+    console.log('Wallet address:', address);
+    
+    // Test the API endpoint
+    fetch(`${API_BASE}/debug/auth-test`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    .then(res => res.json())
+    .then(data => console.log('Auth test result:', data))
+    .catch(err => console.error('Auth test error:', err));
+  };
+
+  
+useEffect(() => {
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      console.log('📡 Fetching REAL data from backend...');
+      console.log('API Base:', API_BASE);
+      
+      // Fetch ALL matches (not just upcoming)
+      const [matchesRes, groupsRes] = await Promise.all([
+        fetch(`${API_BASE}/matches?limit=100`),  // Get up to 100 matches
+        fetch(`${API_BASE}/matches/groups`)
+      ]);
+
+      console.log('Matches response status:', matchesRes.status);
+      console.log('Groups response status:', groupsRes.status);
+
+      if (!matchesRes.ok) throw new Error(`Matches API failed: ${matchesRes.status}`);
+      if (!groupsRes.ok) throw new Error(`Groups API failed: ${groupsRes.status}`);
+
+      const matchesData = await matchesRes.json();
+      const groupsData = await groupsRes.json();
+
+      console.log('✅ RAW Backend data - matches:', matchesData);
+      console.log('✅ RAW Backend data - groups:', groupsData);
+      
+      // IMPORTANT: Check the actual structure
+      // matchesData might have: matchesData.data OR matchesData.matches
+      const allMatchesRaw = matchesData.data || matchesData.matches || matchesData || [];
+      console.log(`📊 Total matches from API: ${allMatchesRaw.length}`);
+      
+      if (allMatchesRaw.length > 0) {
+        console.log('Sample raw match:', allMatchesRaw[0]);
+      }
+
+      // CORRECT TRANSFORMATION - Match your database fields
+      const matches = allMatchesRaw.map(match => {
+        // Add date formatting
+        const matchDate = new Date(match.match_date || match.timestamp);
+        const formattedDate = matchDate.toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric'
+        });
+        
+        return {
+          id: match.match_id || match.id,
+          match_id: match.match_id, // Keep original ID
+          teamA: match.team_a || match.teamA,
+          teamB: match.team_b || match.teamB,
+          homeTeam: match.team_a, // Add alternative naming
+          awayTeam: match.team_b, // Add alternative naming
+          group: match.group_name || match.group,
+          group_name: match.group_name, // Keep original
+          timestamp: match.match_date || match.timestamp,
+          displayDate: formattedDate, // Add formatted date for display
+          venue: match.venue,
+          odds: {
+            teamA: match.odds_team_a || (match.odds && match.odds.teamA) || 2.0,
+            draw: match.odds_draw || (match.odds && match.odds.draw) || 3.5,
+            teamB: match.odds_team_b || (match.odds && match.odds.teamB) || 2.5
+          },
+          status: match.status || 'upcoming',
+          // Add date for sorting
+          date: matchDate.getTime()
+        };
+      });
+
+      console.log(`✅ Transformed ${matches.length} matches`);
+      if (matches.length > 0) {
+        console.log('First transformed match DETAILS:', JSON.stringify(matches[0], null, 2));
+      }
+
+      // For groups - create from all matches
+      const groupedMatches = {};
+      matches.forEach(match => {
+        if (match.group) {
+          if (!groupedMatches[match.group]) {
+            groupedMatches[match.group] = [];
+          }
+          groupedMatches[match.group].push(match);
+        }
+      });
+
+      // Create groups with teams
+      const transformedGroups = Object.keys(groupedMatches).map(groupName => {
+        const groupMatches = groupedMatches[groupName];
+        const teams = new Set();
+        
+        groupMatches.forEach(match => {
+          if (match.teamA) teams.add(match.teamA);
+          if (match.teamB) teams.add(match.teamB);
+        });
+        
+        return {
+          name: groupName,
+          teams: Array.from(teams),
+          matches: groupMatches,
+          matchCount: groupMatches.length
+        };
+      });
+
+      console.log(`✅ Created ${transformedGroups.length} groups`);
+      
+      // Sort matches by date (oldest first)
+      const sortedMatches = [...matches].sort((a, b) => a.date - b.date);
+      
+      // Sort groups by name
+      const sortedGroups = [...transformedGroups].sort((a, b) => 
+        a.name.localeCompare(b.name)
+      );
+
+      setState(prev => ({ ...prev, matches: sortedMatches }));
+      setGroups(sortedGroups);
+      
+      console.log('🎯 REAL Data loaded successfully');
+      console.log(`📊 Final counts: ${sortedMatches.length} matches, ${sortedGroups.length} groups`);
+
+    } catch (error) {
+      console.error('❌ Failed to load REAL data from backend:', error);
+      console.error('Error stack:', error.stack);
+      showNotification('Backend connection failed', 'error');
+      
+      setState(prev => ({ ...prev, matches: [] }));
+      setGroups([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchData();
+}, []);
+
+
+  // 2. FETCH USER BETS FROM BACKEND - UPDATED
+// Make sure this useEffect exists and will run when address changes:
+useEffect(() => {
+  const fetchUserBets = async () => {
+    if (!isConnected || !address) return
+    
+    try {
+      console.log(`📥 Fetching REAL bets for user: ${address}`)
+      
+      // Use the API client which handles authentication
+      const data = await apiClient.get(`/bets/user/${address}`)
+      
+      if (data.success) {
+        console.log(`✅ Loaded ${data.data?.length || 0} REAL user bets`)
+        setState(prev => ({
+          ...prev,
+          userBets: data.data || []
+        }))
+      }
+    } catch (error) {
+      console.error('Failed to fetch REAL user bets:', error)
+      if (error.message.includes('Authentication')) {
+        showNotification('Please log in to view your bets', 'error');
+      }
+    }
+  }
+
+  fetchUserBets()
+}, [isConnected, address]) // This should re-run when address changes
 
   const teamsData = [
     { id: 1, name: 'United States', flag: '🇺🇸', odds: 7.0 },
@@ -1193,9 +1300,213 @@ function ClutchApp() {
     { rank: 5, address: '0x3c8...b2d9', winnings: '6,980 CLUTCH', bets: 13 }
   ]
 
+  // 3. PLACE BET FUNCTION (Calls REAL backend) - UPDATED
+const placeBet = async () => {
+  if (!isConnected || !address) {
+    showNotification('Please connect your wallet first', 'error')
+    return
+  }
+
+  if (!betAmount || Number(betAmount) <= 0 || !state.selectedBet) {
+    showNotification('Enter a valid bet amount', 'error')
+    return
+  }
+
+  try {
+    const selectedMatch = state.selectedBet.match
+    const betData = {
+      match_id: selectedMatch.id,
+      outcome: state.selectedBet.outcome,
+      amount: Number(betAmount)
+    }
+
+    console.log('📤 Placing REAL bet:', betData)
+    
+    // Use the API client which adds authentication headers
+    const result = await apiClient.post('/bets', betData)
+
+    if (result.success) {
+      console.log('✅ Bet placed successfully:', result)
+      
+      const newBet = {
+        id: result.data?.bet?.bet_id || Date.now(),
+        matchId: betData.match_id,
+        outcome: betData.outcome,
+        amount: betData.amount,
+        potentialWin: result.data?.bet?.potential_win || (betData.amount * getOdds(selectedMatch, betData.outcome)),
+        resolved: false,
+        transaction_hash: result.data?.chain?.txHash,
+        created_at: new Date().toISOString()
+      }
+
+      setState(prev => ({
+        ...prev,
+        userBets: [...prev.userBets, newBet]
+      }))
+
+      setShowBettingModal(false)
+      setBetAmount('')
+      showNotification('Real bet placed on blockchain!', 'success')
+      triggerCelebration()
+    } else {
+      showNotification(result.error || 'Failed to place bet', 'error')
+    }
+
+  } catch (error) {
+    console.error('Error placing REAL bet:', error)
+    showNotification(error.message || 'Failed to place bet. Please try again.', 'error')
+  }
+}
+const handleWalletLogin = async () => {
+  try {
+    console.log('🚀 STARTING WALLET LOGIN PROCESS');
+    console.log('🔗 Wallet connected:', isConnected);
+    console.log('📝 Wallet address:', address);
+    
+    if (!isConnected || !address) {
+      console.error('❌ Wallet not connected');
+      showNotification('Please connect your wallet first', 'error');
+      return;
+    }
+    
+    // Sign a message for authentication
+    const message = `Welcome to CLUTCH! Please sign this message to authenticate.\n\nWallet: ${address}\nTimestamp: ${Date.now()}`;
+    console.log('📝 Message to sign:', message);
+    
+    try {
+      console.log('✍️ Attempting to sign message...');
+      
+      // Use signMessageAsync from wagmi
+      const signature = await signMessageAsync({ 
+        message: message 
+      });
+      
+      console.log('✅ Signature obtained:', signature ? 'Yes' : 'No');
+      console.log('🔤 Signature preview:', signature ? `${signature.substring(0, 50)}...` : 'None');
+      
+      console.log('📤 Sending login request to backend...');
+      const response = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          walletAddress: address,
+          signature: signature,
+          message: message
+        })
+      });
+      
+      console.log('📥 Backend response status:', response.status);
+      
+      const responseText = await response.text();
+      console.log('📥 Raw response text (first 200 chars):', responseText.substring(0, 200));
+      
+      let result;
+      try {
+        result = JSON.parse(responseText);
+        console.log('📥 Parsed response:', result);
+      } catch (parseError) {
+        console.error('❌ Failed to parse JSON response:', parseError);
+        console.error('Raw response:', responseText);
+        showNotification('Invalid response from server', 'error');
+        return;
+      }
+      
+      if (result.success && result.token) {
+  // Store the token
+  localStorage.setItem('token', result.token);
+  localStorage.setItem('walletAddress', address);
+  console.log('✅ Login successful!');
+  console.log('🔑 Token stored (first 20 chars):', result.token.substring(0, 20) + '...');
+  console.log('👤 User data:', result.user);
+  showNotification('Successfully logged in!', 'success');
+        
+        // Force refresh user bets after login
+        // fetchUserBets();
+      } else {
+        console.error('❌ Login failed:', result.error || 'Unknown error');
+        showNotification(result.error || 'Login failed', 'error');
+      }
+    } catch (signError) {
+      console.error('❌ Signature error:', signError);
+      console.error('❌ Error details:', {
+        name: signError.name,
+        message: signError.message,
+        code: signError.code
+      });
+      showNotification('Failed to sign message: ' + (signError.message || 'User rejected'), 'error');
+    }
+  } catch (error) {
+    console.error('❌ Login process error:', error);
+    showNotification('Login failed. Please try again.', 'error');
+  }
+};
+  // 4. PLACE ULTIMATE BET
+  const placeUltimateBet = async () => {
+    if (!isConnected || !address) {
+      showNotification('Please connect your wallet first', 'error')
+      return
+    }
+
+    if (!ultimateBetAmount || Number(ultimateBetAmount) <= 0 || !state.selectedTeam) {
+      showNotification('Enter a valid bet amount', 'error')
+      return
+    }
+
+    try {
+      const betData = {
+        bet_type: 'championship',
+        team_id: state.selectedTeam.id,
+        user_address: address,
+        amount: Number(ultimateBetAmount),
+        odds: state.selectedTeam.odds
+      }
+
+      const response = await fetch(`${API_BASE}/bets/championship`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(betData)
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        const newUltimateBet = {
+          id: result.bet?.id || Date.now(),
+          team: state.selectedTeam,
+          amount: betData.amount,
+          potentialWin: betData.amount * betData.odds,
+          resolved: false,
+          transaction_hash: result.txHash,
+          created_at: new Date().toISOString()
+        }
+
+        setState(prev => ({
+          ...prev,
+          ultimateBet: newUltimateBet,
+          userBets: [...prev.userBets, { ...newUltimateBet, isUltimate: true }]
+        }))
+
+        setShowUltimateModal(false)
+        setUltimateBetAmount('')
+        showNotification('Real championship bet placed!', 'success')
+        triggerCelebration()
+      } else {
+        showNotification(result.error || 'Failed to place bet', 'error')
+      }
+
+    } catch (error) {
+      console.error('Error placing REAL ultimate bet:', error)
+      showNotification('Failed to place bet. Please try again.', 'error')
+    }
+  }
+
+  // Helper functions
   const showNotification = (message, type) => {
     setNotification({ show: true, message, type })
-    setTimeout(() => setNotification({ show: false, message: '', type: '' }), 2600)
+    setTimeout(() => setNotification({ show: false, message: '', type: '' }), 3000)
   }
 
   const triggerCelebration = () => {
@@ -1203,58 +1514,56 @@ function ClutchApp() {
     setTimeout(() => setIsCelebrating(false), 1800)
   }
 
-  // returns both a 2-letter code (for image) + emoji fallback
-const getFlag = (country) => {
-  const map = {
-    Mexico:        { code: 'mx', emoji: '🇲🇽' },
-    'South Africa':{ code: 'za', emoji: '🇿🇦' },
-    'South Korea': { code: 'kr', emoji: '🇰🇷' },
-    Canada:        { code: 'ca', emoji: '🇨🇦' },
-    Qatar:         { code: 'qa', emoji: '🇶🇦' },
-    Switzerland:   { code: 'ch', emoji: '🇨🇭' },
-    Brazil:        { code: 'br', emoji: '🇧🇷' },
-    Morocco:       { code: 'ma', emoji: '🇲🇦' },
-    Haiti:         { code: 'ht', emoji: '🇭🇹' },
-    Scotland:      { code: 'gb-sct', emoji: '🏴' },
-    'United States':{ code: 'us', emoji: '🇺🇸' },
-    Paraguay:      { code: 'py', emoji: '🇵🇾' },
-    Australia:     { code: 'au', emoji: '🇦🇺' },
-    Germany:       { code: 'de', emoji: '🇩🇪' },
-    Curacao:       { code: 'cw', emoji: '🇨🇼' },
-    'Ivory Coast': { code: 'ci', emoji: '🇨🇮' },
-    Ecuador:       { code: 'ec', emoji: '🇪🇨' },
-    Netherlands:   { code: 'nl', emoji: '🇳🇱' },
-    Japan:         { code: 'jp', emoji: '🇯🇵' },
-    Tunisia:       { code: 'tn', emoji: '🇹🇳' },
-    Belgium:       { code: 'be', emoji: '🇧🇪' },
-    Egypt:         { code: 'eg', emoji: '🇪🇬' },
-    Iran:          { code: 'ir', emoji: '🇮🇷' },
-    'New Zealand': { code: 'nz', emoji: '🇳🇿' },
-    Spain:         { code: 'es', emoji: '🇪🇸' },
-    'Cape Verde':  { code: 'cv', emoji: '🇨🇻' },
-    'Saudi Arabia':{ code: 'sa', emoji: '🇸🇦' },
-    Uruguay:       { code: 'uy', emoji: '🇺🇾' },
-    France:        { code: 'fr', emoji: '🇫🇷' },
-    Senegal:       { code: 'sn', emoji: '🇸🇳' },
-    Norway:        { code: 'no', emoji: '🇳🇴' },
-    Argentina:     { code: 'ar', emoji: '🇦🇷' },
-    Algeria:       { code: 'dz', emoji: '🇩🇿' },
-    Austria:       { code: 'at', emoji: '🇦🇹' },
-    Jordan:        { code: 'jo', emoji: '🇯🇴' },
-    Portugal:      { code: 'pt', emoji: '🇵🇹' },
-    Uzbekistan:    { code: 'uz', emoji: '🇺🇿' },
-    Colombia:      { code: 'co', emoji: '🇨🇴' },
-    England:       { code: 'gb-eng', emoji: '🏴' },
-    Croatia:       { code: 'hr', emoji: '🇭🇷' },
-    Ghana:         { code: 'gh', emoji: '🇬🇭' },
-    Panama:        { code: 'pa', emoji: '🇵🇦' }
+  const getFlag = (country) => {
+    const map = {
+      Mexico:        { code: 'mx', emoji: '🇲🇽' },
+      'South Africa':{ code: 'za', emoji: '🇿🇦' },
+      'South Korea': { code: 'kr', emoji: '🇰🇷' },
+      Canada:        { code: 'ca', emoji: '🇨🇦' },
+      Qatar:         { code: 'qa', emoji: '🇶🇦' },
+      Switzerland:   { code: 'ch', emoji: '🇨🇭' },
+      Brazil:        { code: 'br', emoji: '🇧🇷' },
+      Morocco:       { code: 'ma', emoji: '🇲🇦' },
+      Haiti:         { code: 'ht', emoji: '🇭🇹' },
+      Scotland:      { code: 'gb-sct', emoji: '🏴' },
+      'United States':{ code: 'us', emoji: '🇺🇸' },
+      Paraguay:      { code: 'py', emoji: '🇵🇾' },
+      Australia:     { code: 'au', emoji: '🇦🇺' },
+      Germany:       { code: 'de', emoji: '🇩🇪' },
+      Curacao:       { code: 'cw', emoji: '🇨🇼' },
+      'Ivory Coast': { code: 'ci', emoji: '🇨🇮' },
+      Ecuador:       { code: 'ec', emoji: '🇪🇨' },
+      Netherlands:   { code: 'nl', emoji: '🇳🇱' },
+      Japan:         { code: 'jp', emoji: '🇯🇵' },
+      Tunisia:       { code: 'tn', emoji: '🇹🇳' },
+      Belgium:       { code: 'be', emoji: '🇧🇪' },
+      Egypt:         { code: 'eg', emoji: '🇪🇬' },
+      Iran:          { code: 'ir', emoji: '🇮🇷' },
+      'New Zealand': { code: 'nz', emoji: '🇳🇿' },
+      Spain:         { code: 'es', emoji: '🇪🇸' },
+      'Cape Verde':  { code: 'cv', emoji: '🇨🇻' },
+      'Saudi Arabia':{ code: 'sa', emoji: '🇸🇦' },
+      Uruguay:       { code: 'uy', emoji: '🇺🇾' },
+      France:        { code: 'fr', emoji: '🇫🇷' },
+      Senegal:       { code: 'sn', emoji: '🇸🇳' },
+      Norway:        { code: 'no', emoji: '🇳🇴' },
+      Argentina:     { code: 'ar', emoji: '🇦🇷' },
+      Algeria:       { code: 'dz', emoji: '🇩🇿' },
+      Austria:       { code: 'at', emoji: '🇦🇹' },
+      Jordan:        { code: 'jo', emoji: '🇯🇴' },
+      Portugal:      { code: 'pt', emoji: '🇵🇹' },
+      Uzbekistan:    { code: 'uz', emoji: '🇺🇿' },
+      Colombia:      { code: 'co', emoji: '🇨🇴' },
+      England:       { code: 'gb-eng', emoji: '🏴' },
+      Croatia:       { code: 'hr', emoji: '🇭🇷' },
+      Ghana:         { code: 'gh', emoji: '🇬🇭' },
+      Panama:        { code: 'pa', emoji: '🇵🇦' }
+    }
+
+    if (map[country]) return map[country]
+    if (country.includes('Playoff')) return { code: null, emoji: '🏁' }
+    return { code: null, emoji: '🏳️' }
   }
-
-  if (map[country]) return map[country]
-  if (country.includes('Playoff')) return { code: null, emoji: '🏁' }
-  return { code: null, emoji: '🏳️' }
-}
-
 
   const getOutcomeText = (outcome, match) => {
     if (!match) return ''
@@ -1266,9 +1575,9 @@ const getFlag = (country) => {
 
   const getOdds = (match, outcome) => {
     if (!match) return 1
-    if (outcome === 0) return match.odds.teamA
-    if (outcome === 1) return match.odds.draw
-    if (outcome === 2) return match.odds.teamB
+    if (outcome === 0) return match.odds?.teamA || 2.0
+    if (outcome === 1) return match.odds?.draw || 3.5
+    if (outcome === 2) return match.odds?.teamB || 3.0
     return 1
   }
 
@@ -1276,10 +1585,10 @@ const getFlag = (country) => {
 
   const selectBet = (matchId, outcome) => {
     if (!isConnected) {
-      showNotification('Connect your wallet to place CLUTCH tickets.', 'error')
+      showNotification('Connect your wallet to place bets', 'error')
       return
     }
-    const match = sampleMatches.find(m => m.id === matchId)
+    const match = state.matches.find(m => m.id === matchId)
     if (!match) return
     setState(prev => ({ ...prev, selectedBet: { matchId, outcome, match } }))
     setBetAmount('')
@@ -1288,7 +1597,7 @@ const getFlag = (country) => {
 
   const selectTeam = (teamId) => {
     if (!isConnected) {
-      showNotification('Connect your wallet to pick your CLUTCH champion.', 'error')
+      showNotification('Connect your wallet to pick champion', 'error')
       return
     }
     const team = teamsData.find(t => t.id === teamId)
@@ -1296,72 +1605,29 @@ const getFlag = (country) => {
     setState(prev => ({ ...prev, selectedTeam: team }))
   }
 
-  const placeBet = () => {
-    if (!betAmount || Number(betAmount) <= 0 || !state.selectedBet) {
-      showNotification('Enter a valid CLUTCH amount.', 'error')
-      return
+  const renderFlag = (country, size = 20) => {
+    const { code, emoji } = getFlag(country)
+    if (code) {
+      return (
+        <img
+          src={`https://flagcdn.com/w20/${code}.png`}
+          alt={country}
+          width={size}
+          height={size * 0.75}
+          style={{ borderRadius: 3 }}
+          onError={(e) => {
+            e.currentTarget.style.display = 'none'
+            e.currentTarget.parentNode.textContent = emoji
+          }}
+        />
+      )
     }
-    const amount = Number(betAmount)
-    const odds = getOdds(state.selectedBet.match, state.selectedBet.outcome)
-    const potentialWin = amount * odds
-    const newBet = {
-      id: Date.now(),
-      matchId: state.selectedBet.matchId,
-      outcome: state.selectedBet.outcome,
-      amount,
-      potentialWin,
-      resolved: false
-    }
-    setState(prev => ({ ...prev, userBets: [...prev.userBets, newBet] }))
-    setShowBettingModal(false)
-    triggerCelebration()
-    showNotification('CLUTCH ticket submitted.', 'success')
-  }
-const renderFlag = (country, size = 20) => {
-  const { code, emoji } = getFlag(country)
-  if (code) {
-    // using flagcdn – super lightweight PNGs
-    return (
-      <img
-        src={`https://flagcdn.com/w20/${code}.png`}
-        alt={country}
-        width={size}
-        height={size * 0.75}
-        style={{ borderRadius: 3 }}
-        onError={(e) => {
-          // if image fails for some reason, show emoji
-          e.currentTarget.style.display = 'none'
-          e.currentTarget.parentNode.textContent = emoji
-        }}
-      />
-    )
-  }
-  return <span>{emoji}</span>
-}
-
-  const placeUltimateBet = () => {
-    if (!ultimateBetAmount || Number(ultimateBetAmount) <= 0 || !state.selectedTeam) {
-      showNotification('Enter a valid CLUTCH amount.', 'error')
-      return
-    }
-    const amount = Number(ultimateBetAmount)
-    const odds = state.selectedTeam.odds
-    const potentialWin = amount * odds
-    const newUltimate = {
-      team: state.selectedTeam,
-      amount,
-      potentialWin,
-      resolved: false
-    }
-    setState(prev => ({ ...prev, ultimateBet: newUltimate }))
-    setShowUltimateModal(false)
-    triggerCelebration()
-    showNotification('Ultimate CLUTCH champion ticket locked in.', 'success')
+    return <span>{emoji}</span>
   }
 
   const openUltimateBetModal = () => {
     if (!state.selectedTeam) {
-      showNotification('Choose a champion team first.', 'error')
+      showNotification('Choose a champion team first', 'error')
       return
     }
     setUltimateBetAmount('')
@@ -1369,14 +1635,11 @@ const renderFlag = (country, size = 20) => {
   }
 
   const totalBets = state.userBets.length + (state.ultimateBet ? 1 : 0)
-  const activeBets =
-    state.userBets.filter(b => !b.resolved).length +
+  const activeBets = state.userBets.filter(b => !b.resolved).length + 
     (state.ultimateBet && !state.ultimateBet.resolved ? 1 : 0)
-  const totalStaked =
-    state.userBets.reduce((s, b) => s + b.amount, 0) +
+  const totalStaked = state.userBets.reduce((s, b) => s + b.amount, 0) + 
     (state.ultimateBet ? state.ultimateBet.amount : 0)
-  const potentialWins =
-    state.userBets.reduce((s, b) => s + b.potentialWin, 0) +
+  const potentialWins = state.userBets.reduce((s, b) => s + b.potentialWin, 0) + 
     (state.ultimateBet ? state.ultimateBet.potentialWin : 0)
 
   useEffect(() => {
@@ -1388,10 +1651,63 @@ const renderFlag = (country, size = 20) => {
     }
   }, [])
 
-  useEffect(() => {
-    setState(prev => ({ ...prev, matches: sampleMatches }))
-  }, [])
+  // Loading state
+  if (loading) {
+    return (
+      <div className="app">
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          color: 'var(--text-main)'
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>🦅</div>
+            <div>Loading REAL World Cup 2026 data from backend...</div>
+            <div style={{ fontSize: '0.9rem', color: 'var(--text-soft)', marginTop: '0.5rem' }}>
+              Fetching from: {API_BASE}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
+  // Empty state if no REAL data
+  if (state.matches.length === 0) {
+    return (
+      <div className="app">
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          color: 'var(--text-main)',
+          textAlign: 'center'
+        }}>
+          <div>
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🦅</div>
+            <h2>No REAL match data available</h2>
+            <p style={{ color: 'var(--text-soft)', marginTop: '0.5rem' }}>
+              Backend connection issue. Make sure your server is running at:
+            </p>
+            <code style={{ 
+              background: 'var(--card-surface)', 
+              padding: '0.5rem 1rem',
+              borderRadius: '8px',
+              display: 'inline-block',
+              marginTop: '1rem'
+            }}>
+              {API_BASE}
+            </code>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // MAIN RENDER - REAL DATA ONLY
   return (
     <div className="app">
       <div className="stadium-background" />
@@ -1475,22 +1791,24 @@ const renderFlag = (country, size = 20) => {
 
           <button
   className="connect-btn"
-  onClick={() => {
+  onClick={async () => {
     if (typeof window !== 'undefined' && window.web3modal) {
       window.web3modal.open();
     } else {
       console.log('Web3Modal not available');
+    }
+    
+    // After wallet connects, wait a moment then auto-login
+    if (isConnected && address) {
+      setTimeout(() => {
+        handleWalletLogin();
+      }, 1000);
     }
   }}
 >
   {isConnected ? 'Switch / Wallet' : 'Connect Wallet'}
 </button>
 
-          {isConnected && (
-            <button className="disconnect-btn" onClick={() => disconnect()}>
-              Disconnect
-            </button>
-          )}
         </div>
       </header>
 
@@ -1559,13 +1877,16 @@ const renderFlag = (country, size = 20) => {
             </div>
           </div>
           <div className="usa-strip-bets">
-            <button
-              className="usa-bet-pill"
-              onClick={() => selectBet(2, 0)}
-            >
-              <span className="icon">🇺🇸</span>
-              <span>USA to win vs Paraguay</span>
-            </button>
+            {state.matches.filter(m => m.teamA === 'USA' || m.teamB === 'USA').slice(0, 2).map(match => (
+              <button
+                key={match.id}
+                className="usa-bet-pill"
+                onClick={() => selectBet(match.id, match.teamA === 'USA' ? 0 : 2)}
+              >
+                <span className="icon">🇺🇸</span>
+                <span>USA to win vs {match.teamA === 'USA' ? match.teamB : match.teamA}</span>
+              </button>
+            ))}
             <button
               className="usa-bet-pill"
               onClick={() => selectTeam(1)}
@@ -1578,11 +1899,11 @@ const renderFlag = (country, size = 20) => {
 
         <h2 className="section-title">Match Arena</h2>
         <div className="section-kicker">
-          Real 2026 fixtures. No scores yet – just pure pre-kickoff anticipation.
+          REAL 2026 World Cup matches from backend • {state.matches.length} matches
         </div>
 
         <div className="matches-grid">
-          {sampleMatches.map(match => (
+          {state.matches.map(match => (
             <div key={match.id} className="match-card">
               <div className="match-header-row">
                 <span>{match.group}</span>
@@ -1645,20 +1966,20 @@ const renderFlag = (country, size = 20) => {
         </div>
       </section>
 
-      {/* GROUP STANDINGS (NO POINTS) */}
+      {/* GROUP STANDINGS */}
       <section id="groups">
         <h2 className="section-title">World Cup 26™ Group Line-ups</h2>
         <div className="section-kicker">
-          Official draw – groups A to L. Standings will update once the first whistle blows.
+          REAL group data from backend • {groups.length} groups
         </div>
 
         <div className="groups-grid">
-          {groupsData.map(group => (
+          {groups.map(group => (
             <div key={group.name} className="group-card">
               <div className="group-header">
                 <div className="group-name">{group.name}</div>
                 <div className="group-subtitle">
-                  Canada • Mexico • USA • North America 2026
+                  {group.teams.length} teams
                 </div>
               </div>
               {group.teams.map(team => (
@@ -1951,12 +2272,4 @@ const renderFlag = (country, size = 20) => {
   )
 }
 
-function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <ClutchApp />
-    </QueryClientProvider>
-  )
-}
-
-export default App
+export default ClutchApp
